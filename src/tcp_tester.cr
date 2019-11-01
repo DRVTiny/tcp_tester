@@ -42,6 +42,21 @@ module TcpTester
 		)
 	end
 	
+	class Discovery # Trek, AMD, Discovery Channel!
+		@ports_d : Hash(String, Array(Hash(String, Int32 | String)))
+		def initialize(@conf : Config)
+			@ports_d = {"data" => @conf.ports.map {|p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")}}}
+		end
+		
+    def ports(io : IO)
+      @ports_d.to_json(io)
+    end
+    
+    def ports
+      @ports_d.to_json
+    end	
+	end
+	
 	config_file = DFLT_CONF_FILE
 	work_mode 	= DFLT_WORK_MODE
   OptionParser.parse do |parser|
@@ -86,8 +101,8 @@ module TcpTester
 
         spawn do
           http_server = HTTP::Server.new do |ctx|
-            ctx.response.content_type = "text/plain"
-            ctx.response.print "PONG"
+            ctx.response.content_type = "application/json"
+            Discovery.new(descr).ports(ctx.response) #.print "PONG"
           rescue ex
             puts "ERROR: Exception of type #{ex.class} catched: #{ex.message}"
           end

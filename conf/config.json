@@ -18,6 +18,10 @@
             "type": "http",
             "use_ssl": true
         },
+        {	
+            "port": 8080,
+            "type": "http"
+        },
         {"port": 9443},
         {"port": 9601},
         {"port": 8543},
