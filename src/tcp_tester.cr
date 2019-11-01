@@ -14,54 +14,57 @@ module TcpTester
   lib C
     fun geteuid : UInt32
   end
-  
+
   def self.get_app_name : String
     appName = Process.executable_path || DFLT_APP_NAME
-    appName[((appName.rindex("/") || -1) + 1)..-1].gsub(/(?:^crystal-run-|\.tmp$)/,"")
+    appName[((appName.rindex("/") || -1) + 1)..-1].gsub(/(?:^crystal-run-|\.tmp$)/, "")
   end
 
   class SSLConf
-  	JSON.mapping(
-	  	crt_file: 	{type: String, nilable: true},
-  		key_file:  	{type: String, nilable: true}
-  	)
+    JSON.mapping(
+      crt_file: {type: String, nilable: true},
+      key_file: {type: String, nilable: true}
+    )
   end
+
   class PortRec
     JSON.mapping(
-      port:			{type: Int32, nilable: false},
-      remote: 	{type: String, nilable: false, default: TcpTester::DFLT_RMT_HOST},
-      listen: 	{type: String, nilable: false, default: TcpTester::DFLT_BIND_HOST},
-      type: 		{type: String, nilable: false, default: "ftp"},
-      use_ssl: 	{type: Bool, nilable: false, default: false}
+      port: {type: Int32, nilable: false},
+      remote: {type: String, nilable: false, default: TcpTester::DFLT_RMT_HOST},
+      listen: {type: String, nilable: false, default: TcpTester::DFLT_BIND_HOST},
+      type: {type: String, nilable: false, default: "ftp"},
+      use_ssl: {type: Bool, nilable: false, default: false}
     )
-  end  
-	class Config
-		JSON.mapping(
-			ports: Array(PortRec),
-			ssl: SSLConf
-		)
-	end
-	
-	class Discovery # Trek, AMD, Discovery Channel!
-		@ports_d : Hash(String, Array(Hash(String, Int32 | String)))
-		def initialize(@conf : Config)
-			@ports_d = {"data" => @conf.ports.map {|p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")}}}
-		end
-		
+  end
+
+  class Config
+    JSON.mapping(
+      ports: Array(PortRec),
+      ssl: SSLConf
+    )
+  end
+
+  class Discovery # Trek, AMD, Discovery Channel!
+    @ports_d : Hash(String, Array(Hash(String, Int32 | String)))
+
+    def initialize(@conf : Config)
+      @ports_d = {"data" => @conf.ports.map { |p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")} }}
+    end
+
     def ports(io : IO)
       @ports_d.to_json(io)
     end
-    
+
     def ports
       @ports_d.to_json
-    end	
-	end
-	
-	config_file = DFLT_CONF_FILE
-	work_mode 	= DFLT_WORK_MODE
+    end
+  end
+
+  config_file = DFLT_CONF_FILE
+  work_mode = DFLT_WORK_MODE
   OptionParser.parse do |parser|
     parser.banner = "Usage: #{get_app_name} [arguments]"
-    parser.on("-с CONFIG_FILE_PATH.json", "--config=CONFIG_FILE_PATH.json", "Path to configuration file in JSON format") {|c| config_file = c }
+    parser.on("-с CONFIG_FILE_PATH.json", "--config=CONFIG_FILE_PATH.json", "Path to configuration file in JSON format") { |c| config_file = c }
     parser.on("-m WORK_MODE", "--mode=WORK_MODE", "Specifies this script working mode. Acceptable values: server [default], client, discovery") { |w| work_mode = w }
     parser.on("-h", "--help", "Show this help") { puts parser; exit 0 }
     parser.invalid_option do |flag|
@@ -69,7 +72,7 @@ module TcpTester
       STDERR.puts parser
       exit 1
     end
-  end	
+  end
 
   euid = C.geteuid
   host = System.hostname.match(/^([^.]+)/).not_nil![0]
@@ -102,7 +105,8 @@ module TcpTester
         spawn do
           http_server = HTTP::Server.new do |ctx|
             ctx.response.content_type = "application/json"
-            Discovery.new(descr).ports(ctx.response) #.print "PONG"
+            Discovery.new(descr).ports(ctx.response) # .print "PONG"
+
           rescue ex
             puts "ERROR: Exception of type #{ex.class} catched: #{ex.message}"
           end
@@ -154,8 +158,8 @@ module TcpTester
     ch[:http].receive if flHasHTTP
     other_cnt.times { ch[:other].receive } if flHasNoHTTP
   when "discovery"
-  	h = {"data" => tcp_ports.map {|p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")}}}
-  	puts h.to_json
+    h = {"data" => tcp_ports.map { |p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")} }}
+    puts h.to_json
   else
     raise "Unknown work mode: #{work_mode}"
   end
