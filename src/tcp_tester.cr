@@ -7,16 +7,29 @@ module TcpTester
   DFLT_WORK_MODE = "server"
   DFLT_BIND_HOST = "0.0.0.0"
   DFLT_RMT_HOST  = "localhost"
-
+  
+  class SSLConf
+  	JSON.mapping(
+	  	crt_file: 	{type: String, nilable: true},
+  		key_file:  	{type: String, nilable: true}
+  	)
+  end
   class PortRec
     JSON.mapping(
-      port: {type: Int32, nilable: false},
-      remote: {type: String, nilable: false, default: TcpTester::DFLT_RMT_HOST},
-      listen: {type: String, nilable: false, default: TcpTester::DFLT_BIND_HOST},
-      type: {type: String, nilable: false, default: "ftp"},
-      use_ssl: {type: Bool, nilable: false, default: false}
+      port:			{type: Int32, nilable: false},
+      remote: 	{type: String, nilable: false, default: TcpTester::DFLT_RMT_HOST},
+      listen: 	{type: String, nilable: false, default: TcpTester::DFLT_BIND_HOST},
+      type: 		{type: String, nilable: false, default: "ftp"},
+      use_ssl: 	{type: Bool, nilable: false, default: false}
     )
-  end
+  end  
+	class Config
+		JSON.mapping(
+			ports: Array(PortRec),
+			ssl: SSLConf
+		)
+	end
+
 
   unless conf_file = ARGV[0]?
     raise "No config file specified, you will burn in Hell!"
@@ -29,12 +42,13 @@ module TcpTester
   euid = C.geteuid
   host = System.hostname.match(/^([^.]+)/).not_nil![0]
 
-  descr = Array(PortRec).from_json(File.open(conf_file).gets_to_end)
+  descr = Config.from_json(File.open(conf_file).gets_to_end)
+  tcp_ports = descr.ports
   work_mode = ARGV[1]? || DFLT_WORK_MODE
   case work_mode
   when "client"
     ch_client = Channel(Nil).new
-    descr.each do |e|
+    tcp_ports.each do |e|
       spawn do
         tcp_client = TCPSocket.new(e.remote, e.port)
         tcp_client << "message\n"
@@ -44,15 +58,15 @@ module TcpTester
         ch_client.send(nil)
       end
     end
-    descr.size.times { ch_client.receive }
+    tcp_ports.size.times { ch_client.receive }
   when "server"
-    raise "cant bind to privileged ports, insufficient privileges" if euid > 0 && descr.find { |e| e.port < 1024 }
+    raise "cant bind to privileged ports, insufficient privileges" if euid > 0 && tcp_ports.find { |e| e.port < 1024 }
     ch = {http: Channel(Nil).new, other: Channel(Nil).new}
-    if flHasHTTP = descr.find { |e| e.type == "http" }
+    if flHasHTTP = tcp_ports.find { |e| e.type == "http" }
       begin
         ssl_conf = OpenSSL::SSL::Context::Server.new
-        ssl_conf.certificate_chain = "conf/CA/#{host}-www.crt"
-        ssl_conf.private_key = "conf/CA/private/#{host}-www.key"
+        ssl_conf.certificate_chain = descr.ssl.crt_file || "conf/CA/#{host}-www.crt"
+        ssl_conf.private_key = descr.ssl.key_file || "conf/CA/private/#{host}-www.key"
 
         spawn do
           http_server = HTTP::Server.new do |ctx|
@@ -62,7 +76,7 @@ module TcpTester
             puts "ERROR: Exception of type #{ex.class} catched: #{ex.message}"
           end
 
-          descr.reject { |e| e.type != "http" }.each do |e|
+          tcp_ports.reject { |e| e.type != "http" }.each do |e|
             unless e.use_ssl
               http_server.bind_tcp "0.0.0.0", e.port
             else
@@ -80,8 +94,8 @@ module TcpTester
       end
     end
     other_cnt = 0
-    if flHasNoHTTP = descr.find { |e| e.type != "http" }
-      descr.reject { |e| e.type == "http" }.each do |e|
+    if flHasNoHTTP = tcp_ports.find { |e| e.type != "http" }
+      tcp_ports.reject { |e| e.type == "http" }.each do |e|
         spawn do
           tcp_server = TCPServer.new(e.listen, e.port)
           other_cnt += 1

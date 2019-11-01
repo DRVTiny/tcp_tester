@@ -1,0 +1,32 @@
+{
+    "ports": [
+        
+        {
+            "port": 1200,
+            "remote": "185.170.2.133"
+        },
+        {
+            "port": 1300,
+            "remote": "185.170.2.133"
+        },    
+        {
+            "port": 1400,
+            "remote": "185.170.2.133"
+        },
+        {	
+            "port": 8443,
+            "type": "http",
+            "use_ssl": true
+        },
+        {"port": 9443},
+        {"port": 9601},
+        {"port": 8543},
+        {"port": 8643},
+        {"port": 8743},
+        {"port": 8843}
+    ],
+    "ssl": {
+        "crt_file": "conf/CA/ec01-limon01-www.crt",
+        "key_file": "conf/CA/private/ec01-limon01-www.key"
+    }
+}
