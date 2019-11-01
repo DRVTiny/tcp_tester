@@ -51,8 +51,8 @@ module TcpTester
     if flHasHTTP = descr.find { |e| e.type == "http" }
       begin
         ssl_conf = OpenSSL::SSL::Context::Server.new
-        ssl_conf.certificate_chain = "CA/#{host}-www.crt"
-        ssl_conf.private_key = "CA/private/#{host}-www.key"
+        ssl_conf.certificate_chain = "conf/CA/#{host}-www.crt"
+        ssl_conf.private_key = "conf/CA/private/#{host}-www.key"
 
         spawn do
           http_server = HTTP::Server.new do |ctx|
