@@ -1,13 +1,25 @@
 require "socket"
 require "json"
 require "http/server"
+require "option_parser"
 
 module TcpTester
   VERSION        = "0.1.0"
+  DFLT_CONF_FILE = "conf/config.json"
   DFLT_WORK_MODE = "server"
   DFLT_BIND_HOST = "0.0.0.0"
   DFLT_RMT_HOST  = "localhost"
+  DFLT_APP_NAME  = "tcp_tester"
+
+  lib C
+    fun geteuid : UInt32
+  end
   
+  def self.get_app_name : String
+    appName = Process.executable_path || DFLT_APP_NAME
+    appName[((appName.rindex("/") || -1) + 1)..-1].gsub(/(?:^crystal-run-|\.tmp$)/,"")
+  end
+
   class SSLConf
   	JSON.mapping(
 	  	crt_file: 	{type: String, nilable: true},
@@ -29,22 +41,26 @@ module TcpTester
 			ssl: SSLConf
 		)
 	end
-
-
-  unless conf_file = ARGV[0]?
-    raise "No config file specified, you will burn in Hell!"
-  end
-
-  lib C
-    fun geteuid : UInt32
-  end
+	
+	config_file = DFLT_CONF_FILE
+	work_mode 	= DFLT_WORK_MODE
+  OptionParser.parse do |parser|
+    parser.banner = "Usage: #{get_app_name} [arguments]"
+    parser.on("-с CONFIG_FILE_PATH.json", "--config=CONFIG_FILE_PATH.json", "Path to configuration file in JSON format") {|c| config_file = c }
+    parser.on("-m WORK_MODE", "--mode=WORK_MODE", "Specifies this script working mode. Acceptable values: server [default], client, discovery") { |w| work_mode = w }
+    parser.on("-h", "--help", "Show this help") { puts parser; exit 0 }
+    parser.invalid_option do |flag|
+      STDERR.puts "ERROR: #{flag} is not a valid option."
+      STDERR.puts parser
+      exit 1
+    end
+  end	
 
   euid = C.geteuid
   host = System.hostname.match(/^([^.]+)/).not_nil![0]
 
-  descr = Config.from_json(File.open(conf_file).gets_to_end)
+  descr = Config.from_json(File.open(config_file).gets_to_end)
   tcp_ports = descr.ports
-  work_mode = ARGV[1]? || DFLT_WORK_MODE
   case work_mode
   when "client"
     ch_client = Channel(Nil).new
@@ -122,6 +138,9 @@ module TcpTester
     end     # if some ports is not http
     ch[:http].receive if flHasHTTP
     other_cnt.times { ch[:other].receive } if flHasNoHTTP
+  when "discovery"
+  	h = {"data" => tcp_ports.map {|p| {"{#TCP_T_PORT}" => p.port, "{#TCP_T_CHECK_TYPE}" => p.type + (p.use_ssl ? "s" : "")}}}
+  	puts h.to_json
   else
     raise "Unknown work mode: #{work_mode}"
   end
