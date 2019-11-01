@@ -1,6 +1,7 @@
 require "http/server"
+
 lib C
-  fun geteuid() : UInt32
+  fun geteuid : UInt32
 end
 
 euid = C.geteuid
